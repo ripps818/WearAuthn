@@ -38,7 +38,7 @@ Work in small, reviewable steps on branches. Commit often. Keep a running log in
 3. Change `applicationId` (e.g. `me.ripps.wearauthn`) so it can sit alongside the Play Store build.
 4. **Do not use the committed `ci_keystore.jks` / `nightly_keystore.jks`.** Generate a new signing key stored outside the repo, and document how CI should get it from secrets.
 5. Remove or stub out the `companion` in-app-purchase gating. The complication should simply work.
-6. Optional: a GitHub Actions workflow that builds and uploads the APK artifact. Taylor has a self-hosted runner on his VPS (proxima-a).
+6. Optional: a GitHub Actions workflow that builds and uploads the APK artifact. Taylor has a self-hosted runner on his VPS.
 
 Deliver an APK plus a short **device test script for Taylor**: wireless ADB install on the watch, pair the laptop from the watch's Bluetooth settings, attach in the app, then register and log in at https://webauthn.io in Chromium. Include the Linux hidraw permission check (systemd ≥ 244 handles it; otherwise `u2f-hidraw-policy`). You cannot touch the watch, so Taylor runs the device tests. When troubleshooting with him, give **one command at a time** and wait for the result.
 
