@@ -16,6 +16,13 @@ import me.henneke.wearauthn.bthid.api28.HidDeviceProfile28
 /** Central point for enabling the HID SDP record and sending all data.  */
 object HidDataSender {
 
+    enum class AppRegistrationState {
+        WAITING_FOR_SERVICE,
+        REGISTERING,
+        READY,
+        FAILED,
+    }
+
     private val hidDeviceApp: HidDeviceApp
     private val hidDeviceProfile: HidDeviceProfile
 
@@ -40,20 +47,38 @@ object HidDataSender {
     private var waitingForDevice: BluetoothDevice? = null
 
     @GuardedBy("lock")
+    private var reconnectAfterRegistrationDevice: BluetoothDevice? = null
+
+    @GuardedBy("lock")
+    private var profileProxy: BluetoothProfile? = null
+
+    @GuardedBy("lock")
+    private var registrationRequested = false
+
+    @Volatile
     var isAppRegistered: Boolean = false
+        private set
+
+    @Volatile
+    var appRegistrationState: AppRegistrationState = AppRegistrationState.WAITING_FOR_SERVICE
         private set
 
     private val managingProfileListener = object : ProfileListener {
         override fun onServiceStateChanged(proxy: BluetoothProfile?) {
             synchronized(lock) {
+                profileProxy = proxy
+                registrationRequested = false
                 if (proxy == null) {
-                    if (isAppRegistered) {
-                        // Service has disconnected before we could unregister the app.
-                        // Notify listeners, update the UI and internal state.
-                        onAppStatusChanged(false)
+                    val wasRegistered = isAppRegistered
+                    isAppRegistered = false
+                    appRegistrationState = AppRegistrationState.WAITING_FOR_SERVICE
+                    if (wasRegistered) {
+                        for (listener in profileListeners) {
+                            listener.onAppStatusChanged(false)
+                        }
                     }
                 } else {
-                    hidDeviceApp.registerApp(proxy)
+                    ensureAppRegisteredLocked()
                 }
                 updateDeviceList()
                 for (listener in profileListeners) {
@@ -70,6 +95,7 @@ object HidDataSender {
                         // must be an incoming one. In that case, we shouldn't try to disconnect
                         // from it.
                         waitingForDevice = device
+                        reconnectAfterRegistrationDevice = null
                     }
                     BluetoothProfile.STATE_DISCONNECTED -> {
                         // If we are being disconnected from a device we were waiting to connect to,
@@ -88,18 +114,23 @@ object HidDataSender {
 
         override fun onAppStatusChanged(registered: Boolean) {
             synchronized(lock) {
-                if (registered == isAppRegistered) {
-                    // We are already in the correct state.
-                    return
+                if (!registered && connectedDevice != null) {
+                    reconnectAfterRegistrationDevice = connectedDevice
                 }
                 isAppRegistered = registered
+                registrationRequested = false
+                appRegistrationState = if (registered) {
+                    AppRegistrationState.READY
+                } else {
+                    AppRegistrationState.FAILED
+                }
 
                 for (listener in profileListeners) {
                     listener.onAppStatusChanged(registered)
                 }
-                if (registered && waitingForDevice != null) {
-                    // Fulfill the postponed request to connect now that the app is registered.
-                    requestConnect(waitingForDevice)
+                if (registered) {
+                    reconnectAfterRegistrationDevice?.let { waitingForDevice = it }
+                    updateDeviceList()
                 }
             }
         }
@@ -131,10 +162,12 @@ object HidDataSender {
 
             if (!profileListeners.add(profileListener)) {
                 // This user is already registered
+                ensureAppRegisteredLocked()
                 return hidDeviceProfile
             }
             if (profileListeners.size > 1) {
                 // There are already some users
+                ensureAppRegisteredLocked()
                 return hidDeviceProfile
             }
 
@@ -145,6 +178,26 @@ object HidDataSender {
             hidDeviceApp.registerDeviceListener(managingProfileListener)
         }
         return hidDeviceProfile
+    }
+
+    /** Retry registration after returning from pairing, permissions or screen-lock UI. */
+    fun ensureAppRegistered(): Boolean = synchronized(lock) {
+        ensureAppRegisteredLocked()
+    }
+
+    @GuardedBy("lock")
+    private fun ensureAppRegisteredLocked(): Boolean {
+        if (isAppRegistered || registrationRequested) return true
+        val proxy = profileProxy ?: run {
+            appRegistrationState = AppRegistrationState.WAITING_FOR_SERVICE
+            return false
+        }
+        appRegistrationState = AppRegistrationState.REGISTERING
+        registrationRequested = hidDeviceApp.registerApp(proxy)
+        if (!registrationRequested) {
+            appRegistrationState = AppRegistrationState.FAILED
+        }
+        return registrationRequested
     }
 
     /**
@@ -183,6 +236,11 @@ object HidDataSender {
 
             connectedDevice = null
             waitingForDevice = null
+            reconnectAfterRegistrationDevice = null
+            profileProxy = null
+            registrationRequested = false
+            isAppRegistered = false
+            appRegistrationState = AppRegistrationState.WAITING_FOR_SERVICE
         }
     }
 
@@ -194,18 +252,21 @@ object HidDataSender {
      * @param device New HID Host to connect to or `null` to disconnect.
      */
     fun requestConnect(device: BluetoothDevice?) {
-        waitingForDevice = device
-        if (!isAppRegistered) {
-            // Request will be fulfilled as soon as the app becomes registered.
-            return
-        }
+        synchronized(lock) {
+            waitingForDevice = device
+            reconnectAfterRegistrationDevice = null
+            if (!isAppRegistered) {
+                // Request will be fulfilled as soon as the app becomes registered.
+                return
+            }
 
-        connectedDevice = null
-        updateDeviceList()
+            connectedDevice = null
+            updateDeviceList()
 
-        if (device != null && device == connectedDevice) {
-            for (listener in profileListeners) {
-                listener.onConnectionStateChanged(device, BluetoothProfile.STATE_CONNECTED)
+            if (device != null && device == connectedDevice) {
+                for (listener in profileListeners) {
+                    listener.onConnectionStateChanged(device, BluetoothProfile.STATE_CONNECTED)
+                }
             }
         }
     }

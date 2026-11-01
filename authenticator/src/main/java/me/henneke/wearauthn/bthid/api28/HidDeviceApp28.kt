@@ -50,9 +50,9 @@ class HidDeviceApp28 : HidDeviceApp() {
     override var inputHost: InputHostWrapper28? = null
     private var registered: Boolean = false
 
-    override fun registerApp(inputHost: BluetoothProfile) {
+    override fun registerApp(inputHost: BluetoothProfile): Boolean {
         this.inputHost = InputHostWrapper28(inputHost)
-        this.inputHost!!.registerApp(callback)
+        return this.inputHost!!.registerApp(callback)
     }
 
     override fun unregisterApp() {
@@ -60,6 +60,7 @@ class HidDeviceApp28 : HidDeviceApp() {
             if (registered)
                 unregisterApp()
         }
+        registered = false
         inputHost = null
     }
 }

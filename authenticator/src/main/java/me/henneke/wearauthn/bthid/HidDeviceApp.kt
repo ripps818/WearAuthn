@@ -61,7 +61,7 @@ abstract class HidDeviceApp {
      *
      * @param inputHost Interface for managing the paired HID Host devices and sending the data.
      */
-    abstract fun registerApp(inputHost: BluetoothProfile)
+    abstract fun registerApp(inputHost: BluetoothProfile): Boolean
 
     /** Unregister the HID Device's SDP record.  */
     abstract fun unregisterApp()
@@ -84,4 +84,3 @@ abstract class HidDeviceApp {
     }
 
 }
-

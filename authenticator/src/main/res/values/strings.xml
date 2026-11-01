@@ -5,7 +5,10 @@
     <string name="aiddescription">FIDO2/U2F Security Key</string>
     <string name="connected_to_device_message"><![CDATA[Attached to<br><b>%1$s</b>]]></string>
     <string name="connecting_to_device_message"><![CDATA[Attaching to<br><b>%1$s</b>…]]></string>
-    <string name="connected_to_device_explanation">Use as if a USB security key were attached to that device.\nHelp with common issues is available on your phone.</string>
+    <string name="connected_to_device_plain">Attached to\n%1$s</string>
+    <string name="connecting_to_device_plain">Attaching to\n%1$s…</string>
+    <string name="connected_to_device_explanation">Ready for authentication requests.</string>
+    <string name="action_disconnect">Disconnect</string>
     <string name="preference_about_key" translatable="false">preference_about</string>
     <string name="preference_bluetooth_settings_key" translatable="false">preference_bluetooth_settings</string>
     <string name="message_key_storage_type_unknown">Credential storage: Scanning…</string>
@@ -15,6 +18,11 @@
     <string name="status_bluetooth_connected">Attached</string>
     <string name="status_bluetooth_tap_and_pair">Tap and pair device</string>
     <string name="status_bluetooth_tap_to_enable">Tap to enable</string>
+    <string name="status_bluetooth_key_starting">Starting security key…</string>
+    <string name="status_bluetooth_key_ready">Security key ready</string>
+    <string name="status_bluetooth_key_unavailable">Security key unavailable</string>
+    <string name="status_bluetooth_tap_to_retry">Tap to retry</string>
+    <string name="status_bluetooth_reconnecting">Reconnecting…</string>
     <string name="preference_bluetooth_permissions_key" translatable="false">preference_bluetooth_permissions</string>
     <string name="preference_nfc_settings_key" translatable="false">preference_nfc_settings</string>
     <string name="bluetooth_permissions_explanation">Grant Bluetooth permission</string>
@@ -46,8 +54,6 @@
     <string name="status_bluetooth_use_via_nfc_instead">Use via NFC instead</string>
     <string name="preference_screen_title_shortcut_picker">Add a device shortcut to your watch face</string>
     <string name="message_continue_on_phone">Continue on your phone</string>
-    <string name="name_unlocked_channel">Unlocked functionality</string>
-    <string name="description_unlocked_channel">Informs you about functionality unlocked on your watch by in-app purchases made on your phone.</string>
     <string name="preference_credential_management_key" translatable="false">preference_credential_management</string>
     <string name="button_delete">Delete</string>
     <string name="preference_manage_credentials_summary_disabled">Enable single-factor mode first</string>
@@ -61,15 +67,16 @@
     <string name="preference_title">Use via Bluetooth with</string>
     <string name="preference_category_advanced_title">Advanced</string>
     <string name="preference_category_bluetooth_title" translatable="false">Bluetooth</string>
+    <string name="preference_category_nfc_title" translatable="false">NFC</string>
     <string name="credential_management_title_no_credentials">No credentials for passwordless login</string>
     <string name="credential_management_title">Credentials for passwordless login</string>
     <string name="prompt_delete_resident_credential_message">Delete credential for\n%1$s\n?</string>
     <string name="reset_via_bluetooth_only">Reset only possible via Bluetooth</string>
     <string name="verify_screen_lock_and_retry">Verify screen lock credential and try again</string>
-    <string name="prompt_authenticate_user_verification"><![CDATA[<br/>May require your screen lock password.]]></string>
-    <string name="prompt_register_user_verification"><![CDATA[<br/>Logging in via your watch may require your screen lock password and <b>will no longer be possible after you disable it</b>.]]></string>
-    <string name="prompt_authenticate_resident_key"><![CDATA[<br/>You will be asked to select an account.]]></string>
-    <string name="prompt_register_resident_key"><![CDATA[<br/>The site\'s address and your username will be stored on your watch.]]></string>
+    <string name="prompt_authenticate_user_verification">Lock credential next.</string>
+    <string name="prompt_register_user_verification">Lock credential next.</string>
+    <string name="prompt_authenticate_resident_key">Choose account next.</string>
+    <string name="prompt_register_resident_key">Saved on this watch.</string>
     <string name="message_register_user_verification">. Do not disable the screen lock.</string>
     <string name="prompt_platform_get_touch">Continue with this security key?</string>
     <string name="message_platform_get_touch">Not registered or error encountered</string>
@@ -85,14 +92,35 @@
     <string name="prompt_register">Register%1$s%2$s?%3$s</string>
     <string name="prompt_authenticate">Authenticate%1$s%2$s?%3$s</string>
     <string name="label_complication_device_shortcut">Device shortcut</string>
-    <string name="preference_support_key" translatable="false">preference_support</string>
-    <string name="preference_support_not_purchased_title">Support WearAuthn</string>
-    <string name="preference_support_not_purchased_summary">and unlock a watch face shortcut</string>
-    <string name="preference_support_purchased_title">Thanks for your support!</string>
-    <string name="preference_support_purchased_summary">View recent changes</string>
     <string name="preference_log_level_key" translatable="false">preference_log_level</string>
     <string name="preference_log_level_title">Log level</string>
     <string name="preference_log_level_dialog_title">Choose a log level</string>
     <string name="preference_log_level_dialog_message">Logs may contain personal information on \"Debug\" or \"Verbose\".</string>
     <string name="status_bluetooth_permissions_required">Bluetooth permission not granted</string>
+    <string name="generic_continue">Continue</string>
+    <string name="generic_cancel">Cancel</string>
+    <string name="prompt_device_credential_title">Credential required</string>
+    <string name="prompt_device_credential_message">Confirm your screen lock next.</string>
+    <string name="prompt_device_credential_system_title">WearAuthn</string>
+    <string name="prompt_device_credential_system_message">Unlock to continue.</string>
+    <string name="status_selected">Selected</string>
+    <string name="status_no_paired_devices">No compatible paired devices</string>
+    <string name="credential_chooser_title">Log in as</string>
+    <string name="status_timeout_seconds">Times out in %1$d s</string>
+    <string name="credential_section_site">Site</string>
+    <string name="credential_section_account">Account</string>
+    <string name="credential_section_credential">Credential</string>
+    <string name="credential_label_rp_id">RP ID</string>
+    <string name="credential_label_rp_name">Site name</string>
+    <string name="credential_label_display_name">Display name</string>
+    <string name="credential_label_username">Username</string>
+    <string name="credential_label_user_id">User ID</string>
+    <string name="credential_label_user_icon">Account icon</string>
+    <string name="credential_label_created">Created</string>
+    <string name="credential_label_hardware_backed">Hardware protected</string>
+    <string name="credential_label_hmac_secret">HMAC secret</string>
+    <string name="credential_label_fingerprint">Fingerprint</string>
+    <string name="credential_label_rp_id_hash">RP ID hash</string>
+    <string name="generic_yes">Yes</string>
+    <string name="generic_no">No</string>
 </resources>

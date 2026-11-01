@@ -3,13 +3,13 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 android {
-    compileSdk 34
+    compileSdkVersion "android-37.2"
 
 
     defaultConfig {
         applicationId "me.henneke.wearauthn.authenticator"
         minSdk 21
-        targetSdk 34
+        targetSdk 37
         versionCode makeVersionCode(minSdkVersion.apiLevel, false)
         versionName makeVersionName()
     }
@@ -57,30 +57,27 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
     namespace 'me.henneke.wearauthn.companion'
     buildFeatures {
         buildConfig true
         viewBinding true
     }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 
     implementation 'androidx.appcompat:appcompat:1.7.0'
-    implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.coordinatorlayout:coordinatorlayout:1.2.0'
     implementation 'androidx.fragment:fragment-ktx:1.8.2'
-    implementation 'androidx.lifecycle:lifecycle-livedata-core-ktx:2.8.4'
-    implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.8.4'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4'
-
-    implementation 'com.android.billingclient:billing:7.0.0'
 
     implementation 'com.google.android.gms:play-services-tasks:18.2.0'
     implementation 'com.google.android.gms:play-services-wearable:18.2.0'

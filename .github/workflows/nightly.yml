@@ -1,8 +1,7 @@
 name: Nightly
 
 on:
-  push:
-    branches: [master]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -21,6 +20,14 @@ jobs:
         with:
           java-version: 17
           distribution: 'zulu'
+      - name: Set up Android SDK tools
+        uses: android-actions/setup-android@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Install Android SDK 37.2
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-37.2" "build-tools;37.0.0"
       - name: Set sha_short
         id: vars
         run: |
@@ -45,5 +52,3 @@ jobs:
           prerelease: true
           fail_on_unmatched_files: true
           preserve_order: true
-
-

@@ -128,7 +128,7 @@ The code is structured as follows:
 
 - [`authenticator`](authenticator) (Wear OS app module): watch app that offers U2F/FIDO2 via Bluetooth HID and NFC; contains the following packages below `me.henneke.wearauthn`:
   - [`bthid`](authenticator/src/main/java/me/henneke/wearauthn/bthid): Bluetooth HID device emulation for API levels 28+ (thanks to @ginkage and his [WearMouse](https://github.com/ginkage/wearmouse))
-  - [`complication`](authenticator/src/main/java/me/henneke/wearauthn/complication): Watch face complication that starts WearAuthn and connects to a preset device (available as an in-app purchase in the Play Store version)
+  - [`complication`](authenticator/src/main/java/me/henneke/wearauthn/complication): Watch face complication that starts WearAuthn and connects to a preset device
   - [`fido`](authenticator/src/main/java/me/henneke/wearauthn/fido): Implementation of the U2F and FIDO2 authenticator functionality
     - [`context`](authenticator/src/main/java/me/henneke/wearauthn/fido/context): Backend for the authenticator, handles the actual storage of cryptographic keys and the UI aspects of authenticator operations
     - [`ctap2`](authenticator/src/main/java/me/henneke/wearauthn/fido/ctap2): Implementation of the CTAP2 protocol used to communicate with FIDO2 authenticators (includes a library for CBOR (de)serialization)
@@ -137,7 +137,7 @@ The code is structured as follows:
     - [`u2f`](authenticator/src/main/java/me/henneke/wearauthn/fido/u2f): Implementation of the U2F (CTAP1) protocol for backwards compatibility; nowadays mostly used via NFC
   - [`sync`](authenticator/src/main/java/me/henneke/wearauthn/sync): Synchronization with the phone app, currently only used to keep track of the complication unlock
   - [`ui`](authenticator/src/main/java/me/henneke/wearauthn/ui): Authenticator UI classes, such as the timed confirmation dialog and device list
-- [`companion`](companion) (Android app module): phone app with in-app purchase for unlocking the watch face complication
+- [`companion`](companion) (Android app module): phone app with installation guidance, release notes, and bug reporting
 - [`metadata`](metadata): FIDO Authenticator Metadata for WearAuthn, which describes its features and can be used to run conformance tests
 
 <b id="footnote">1:</b> The open source version of WearAuthn differs from the Play Store in that it does not run on watches on API levels below 28. This is because support for Bluetooth HID device emulation is only available via reflection on these older versions of Wear OS/Android.

@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.Activity
 import android.app.KeyguardManager
 import android.app.NotificationManager
-import android.app.admin.DevicePolicyManager
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
@@ -15,7 +14,6 @@ import android.net.Uri
 import android.os.*
 import android.os.Build.VERSION
 import android.os.Build.VERSION_CODES
-import android.preference.PreferenceManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.wear.widget.ConfirmationOverlay
@@ -45,7 +43,7 @@ val Context.bluetoothAdapter: BluetoothAdapter?
     get() = ContextCompat.getSystemService(this, BluetoothManager::class.java)!!.adapter
 
 val Context.defaultSharedPreferences: SharedPreferences
-    get() = PreferenceManager.getDefaultSharedPreferences(this)
+    get() = getSharedPreferences("${packageName}_preferences", Context.MODE_PRIVATE)
 
 fun Context.sharedPreferences(name: String): SharedPreferences =
     getSharedPreferences(name, Context.MODE_PRIVATE)
