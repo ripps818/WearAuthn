@@ -165,3 +165,10 @@ Building locally:
   - Set User Verification and Discoverable Credential to **Discouraged**. With the defaults, Chromium reports "Your device can't be used with this site", because UV and resident keys require WearAuthn's one-way "Go passwordless" mode.
 - On Wear OS, `svc power stayon true` did not keep the screen on.
 - Logging: enable it in the app under Advanced → Log level (needs watch developer options). The `bthid/` code has no log statements.
+
+#### Second device test (2026-11-01, CI build of PR #4)
+
+- The signed build installed fine. Registration recovery works as designed: on a missing callback it times out, retries, then shows "Security key unavailable".
+- **Wedge trigger narrowed down:** the HID stack stops accepting registrations (native `unregister_app: application not yet registered`, and no further `Registering HID device app`) after the app disconnects the host and unregisters in the same moment, e.g. when the attached screen closes. Only toggling Bluetooth recovers it. Fix: on teardown, disconnect hosts first, wait up to 3 s for the disconnect, then unregister. Cancel the teardown if the app comes back meanwhile.
+- When the stack is wedged, the watch can show "Attached" while the computer has no HID connection (no `hidraw` node). A connection started from the computer (`bluetoothctl connect`) succeeded where one started from the watch failed. That's relevant for Phase 2 reconnects.
+- Chromium sends `GetInfo`, then a dummy "GetTouch" `MakeCredential` when it has already decided the key can't satisfy the request. That's the log signature of "Your device can't be used with this site".

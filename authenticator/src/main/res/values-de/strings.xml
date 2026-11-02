@@ -91,7 +91,7 @@
     <string name="status_bluetooth_key_starting">Sicherheitsschlüssel startet…</string>
     <string name="status_bluetooth_key_ready">Sicherheitsschlüssel bereit</string>
     <string name="status_bluetooth_key_unavailable">Sicherheitsschlüssel nicht verfügbar</string>
-    <string name="status_bluetooth_tap_to_retry">Zum Wiederholen tippen</string>
+    <string name="status_bluetooth_tap_to_retry">Zum Wiederholen tippen oder Bluetooth aus- und einschalten</string>
     <string name="status_bluetooth_reconnecting">Erneute Verbindung…</string>
     <string name="credential_section_site">Seite</string>
     <string name="credential_section_account">Account</string>

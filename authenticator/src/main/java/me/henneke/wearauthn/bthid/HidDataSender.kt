@@ -27,6 +27,10 @@ object HidDataSender : Logging {
     private const val REGISTRATION_TIMEOUT_MS = 5_000L
     private const val MAX_REGISTRATION_ATTEMPTS = 2
 
+    // Unregistering while a host is still connected leaves the same stack unable to register again
+    // until Bluetooth is toggled, so disconnect first and wait (bounded) for it to complete.
+    private const val TEARDOWN_TIMEOUT_MS = 3_000L
+
     enum class AppRegistrationState {
         WAITING_FOR_SERVICE,
         REGISTERING,
@@ -69,7 +73,18 @@ object HidDataSender : Logging {
     @GuardedBy("lock")
     private var registrationAttempts = 0
 
+    @GuardedBy("lock")
+    private var teardownPending = false
+
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val teardownTimeout = Runnable {
+        synchronized(lock) {
+            if (!teardownPending) return@Runnable
+            w { "Hosts did not disconnect within ${TEARDOWN_TIMEOUT_MS}ms; unregistering anyway" }
+            finishTeardownLocked()
+        }
+    }
 
     private val registrationTimeout = Runnable {
         synchronized(lock) {
@@ -124,6 +139,14 @@ object HidDataSender : Logging {
 
         override fun onConnectionStateChanged(device: BluetoothDevice, state: Int) {
             synchronized(lock) {
+                i { "Host connection state: ${connectionStateName(state)}" }
+                if (teardownPending) {
+                    if (activeHosts().isEmpty()) {
+                        i { "Hosts disconnected; unregistering app" }
+                        finishTeardownLocked()
+                    }
+                    return
+                }
                 when (state) {
                     BluetoothProfile.STATE_CONNECTED -> {
                         // A new connection was established. If we weren't expecting that, it
@@ -200,6 +223,16 @@ object HidDataSender : Logging {
                 hidDeviceApp.registerIoListener(ioListener)
             }
 
+            if (teardownPending) {
+                // The app came back before teardown finished: keep the existing registration.
+                i { "New listener during teardown; keeping registration" }
+                teardownPending = false
+                mainHandler.removeCallbacks(teardownTimeout)
+                profileListeners.add(profileListener)
+                ensureAppRegisteredLocked()
+                return hidDeviceProfile
+            }
+
             if (!profileListeners.add(profileListener)) {
                 // This user is already registered
                 ensureAppRegisteredLocked()
@@ -272,28 +305,57 @@ object HidDataSender : Logging {
                 return
             }
 
-            i { "Last listener gone; unregistering app" }
             mainHandler.removeCallbacks(registrationTimeout)
             registrationAttempts = 0
-            hidDeviceApp.unregisterDeviceListener()
-
-            for (device in hidDeviceProfile.connectedDevices) {
-                hidDeviceProfile.disconnect(device)
-            }
-
-            hidDeviceApp.setDevice(null)
-            hidDeviceApp.unregisterApp()
-
-            hidDeviceProfile.unregisterServiceListener()
-
-            connectedDevice = null
             waitingForDevice = null
             reconnectAfterRegistrationDevice = null
-            profileProxy = null
-            registrationRequested = false
-            isAppRegistered = false
-            appRegistrationState = AppRegistrationState.WAITING_FOR_SERVICE
+
+            val hosts = activeHosts()
+            if (hosts.isEmpty()) {
+                i { "Last listener gone; unregistering app" }
+                finishTeardownLocked()
+                return
+            }
+            i { "Last listener gone; disconnecting ${hosts.size} host(s) before unregistering" }
+            teardownPending = true
+            for (device in hosts) {
+                hidDeviceProfile.disconnect(device)
+            }
+            mainHandler.postDelayed(teardownTimeout, TEARDOWN_TIMEOUT_MS)
         }
+    }
+
+    @GuardedBy("lock")
+    private fun finishTeardownLocked() {
+        teardownPending = false
+        mainHandler.removeCallbacks(teardownTimeout)
+
+        hidDeviceApp.unregisterDeviceListener()
+        hidDeviceApp.setDevice(null)
+        hidDeviceApp.unregisterApp()
+
+        hidDeviceProfile.unregisterServiceListener()
+
+        connectedDevice = null
+        waitingForDevice = null
+        reconnectAfterRegistrationDevice = null
+        profileProxy = null
+        registrationRequested = false
+        isAppRegistered = false
+        appRegistrationState = AppRegistrationState.WAITING_FOR_SERVICE
+    }
+
+    private fun activeHosts(): List<BluetoothDevice> =
+        hidDeviceProfile.getDevicesMatchingConnectionStates(
+            intArrayOf(BluetoothProfile.STATE_CONNECTED, BluetoothProfile.STATE_CONNECTING)
+        )
+
+    private fun connectionStateName(state: Int) = when (state) {
+        BluetoothProfile.STATE_CONNECTED -> "connected"
+        BluetoothProfile.STATE_CONNECTING -> "connecting"
+        BluetoothProfile.STATE_DISCONNECTING -> "disconnecting"
+        BluetoothProfile.STATE_DISCONNECTED -> "disconnected"
+        else -> "unknown ($state)"
     }
 
     /**
@@ -305,6 +367,7 @@ object HidDataSender : Logging {
      */
     fun requestConnect(device: BluetoothDevice?) {
         synchronized(lock) {
+            i { if (device != null) "Connect requested" else "Disconnect requested" }
             waitingForDevice = device
             reconnectAfterRegistrationDevice = null
             if (!isAppRegistered) {
