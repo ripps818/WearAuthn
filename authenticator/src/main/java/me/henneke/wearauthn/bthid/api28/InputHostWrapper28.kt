@@ -16,7 +16,7 @@ class InputHostWrapper28(inputHost: BluetoothProfile) : InputHostWrapper {
         Constants.SDP_NAME,
         Constants.SDP_DESCRIPTION,
         Constants.SDP_PROVIDER,
-        BluetoothHidDevice.SUBCLASS1_COMBO,
+        BluetoothHidDevice.SUBCLASS1_NONE,
         HID_REPORT_DESC
     )
 

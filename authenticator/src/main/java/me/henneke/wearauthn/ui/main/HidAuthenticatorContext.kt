@@ -1,11 +1,9 @@
 package me.henneke.wearauthn.ui.main
 
 import android.app.Activity
-import android.content.DialogInterface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import me.henneke.wearauthn.R
 import me.henneke.wearauthn.breakAt
 import me.henneke.wearauthn.fido.context.AuthenticatorContext
 import me.henneke.wearauthn.fido.context.AuthenticatorSpecialStatus
@@ -39,7 +37,6 @@ class HidAuthenticatorContext(private val activity: Activity) :
                 val dialog =
                     TimedAcceptDenyDialog(activity).apply {
                         create()
-                        setIcon(R.drawable.ic_launcher_outline)
                         setMessage(info.confirmationPrompt)
                         setTimeout(HID_USER_PRESENCE_TIMEOUT_MS)
                         setVibrateOnShow(true)
@@ -68,7 +65,6 @@ class HidAuthenticatorContext(private val activity: Activity) :
                 val dialog =
                     TimedAcceptDenyDialog(activity).apply {
                         create()
-                        setIcon(R.drawable.ic_launcher_outline)
                         setTitle(rpId)
                         setMessage(prompt)
                         setTimeout(HID_USER_PRESENCE_TIMEOUT_MS)

@@ -1,20 +1,66 @@
-name: Android CI
+name: Build signed APKs
 
 on:
+  push:
+    branches: [master]
   pull_request:
     branches: [master]
+  workflow_dispatch:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
-      - name: set up JDK 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: 'zulu'
-      - name: Build with Gradle
-        run: ./gradlew buildPlayStoreDebug
+      - name: Set up Android SDK tools
+        uses: android-actions/setup-android@v3
+        with:
+          # The action's default also requests the obsolete "tools" package, which no longer
+          # exists in the SDK repository and makes sdkmanager fail.
+          packages: platform-tools
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Install Android SDK 37.2
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-37.2" "build-tools;37.0.0"
+      - name: Lint, test, and build signed release APKs
+        run: |
+          ./gradlew \
+            :authenticator:lintPlayStoreDebug \
+            :companion:lintPlayStoreDebug \
+            :authenticator:testPlayStoreDebugUnitTest \
+            :authenticator:assemblePlayStoreRelease \
+            :companion:assemblePlayStoreRelease
+      - name: Verify APK signatures
+        run: |
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs authenticator/build/outputs/apk/playStore/release/authenticator-playStore-release.apk
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs companion/build/outputs/apk/playStore/release/companion-playStore-release.apk
+          sha256sum authenticator/build/outputs/apk/playStore/release/authenticator-playStore-release.apk companion/build/outputs/apk/playStore/release/companion-playStore-release.apk
+      - name: Upload signed APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: WearAuthn-0.9.20-signed-apks
+          path: |
+            authenticator/build/outputs/apk/playStore/release/authenticator-playStore-release.apk
+            companion/build/outputs/apk/playStore/release/companion-playStore-release.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WearAuthn-lint-reports
+          path: |
+            authenticator/build/reports/lint-results-playStoreDebug.html
+            companion/build/reports/lint-results-playStoreDebug.html
+          if-no-files-found: ignore
+          retention-days: 14

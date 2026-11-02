@@ -1,89 +1,84 @@
 package me.henneke.wearauthn.ui
 
-import android.app.Dialog
 import android.content.Context
 import android.os.Bundle
-import android.view.View
-import android.view.ViewGroup
-import android.widget.BaseAdapter
-import android.widget.TextView
-import kotlinx.coroutines.*
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import androidx.activity.ComponentDialog
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.stringResource
 import me.henneke.wearauthn.R
-import me.henneke.wearauthn.databinding.CredentialChooserDialogBinding
 import me.henneke.wearauthn.fido.context.WebAuthnCredential
+import me.henneke.wearauthn.ui.theme.WearAuthnTheme
 
-private const val TAG = "CredentialChooserDialog"
+private const val CREDENTIAL_CHOOSER_TIMEOUT_MS = 30_000L
 
 @ExperimentalUnsignedTypes
 class CredentialChooserDialog(
-    val credentials: Array<WebAuthnCredential>,
+    private val credentials: Array<WebAuthnCredential>,
     context: Context,
-    val callback: (WebAuthnCredential?) -> Unit
-) : Dialog(context), CoroutineScope {
-
-    private val TIMEOUT_MS = 30_000L
-
-    override val coroutineContext = Dispatchers.Main + SupervisorJob()
-
-    private lateinit var binding: CredentialChooserDialogBinding
+    private val callback: (WebAuthnCredential?) -> Unit,
+) : ComponentDialog(context) {
 
     private var chosenCredential: WebAuthnCredential? = null
 
+    private val handler = Handler(Looper.getMainLooper())
+    private var deadlineElapsedMs = 0L
+
+    // Handler delays run on uptimeMillis, which stops advancing in deep sleep, so a single
+    // postDelayed would overshoot the deadline by however long the watch dozed. Re-check against
+    // elapsedRealtime on each wake up and re-post until the deadline has genuinely passed.
+    private val timeout = object : Runnable {
+        override fun run() {
+            val remaining = deadlineElapsedMs - SystemClock.elapsedRealtime()
+            if (remaining <= 0) cancel() else handler.postDelayed(this, remaining)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = CredentialChooserDialogBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        binding.credentialList.apply {
-            val header = layoutInflater.inflate(R.layout.credential_list_header, this, false)
-            addHeaderView(header)
-            addFooterView(TextView(context).apply { height = header.height })
-            adapter = credentialListAdapter
-            setOnItemClickListener { _, _, position, _ ->
-                val adapterPosition = position - headerViewsCount
-                if (adapterPosition in 0 until adapter.count) {
-                    if (chosenCredential == null)
-                        chosenCredential = credentialListAdapter.getItem(adapterPosition)
-                    dismiss()
+        setContentView(
+            ComposeView(context).apply {
+                setContent {
+                    WearAuthnTheme {
+                        WearListScreen(title = stringResource(R.string.credential_chooser_title)) {
+                            credentials.forEachIndexed { index, credential ->
+                                val info = credential.getTwoLineInfo(index + 1)
+                                item(key = credential.hashCode()) {
+                                    WearButton(
+                                        label = info.first.toString(),
+                                        secondaryLabel = info.second?.toString(),
+                                        onClick = {
+                                            if (chosenCredential == null) chosenCredential = credential
+                                            dismiss()
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
-            }
-        }
+            },
+        )
         setOnDismissListener { callback(chosenCredential) }
     }
 
     override fun onStart() {
         super.onStart()
-        launch {
-            delay(TIMEOUT_MS)
-            this@CredentialChooserDialog.cancel()
+        // Armed once, against elapsedRealtime, and left running while the dialog is stopped. The
+        // previous lifecycle scoped delay was cancelled in onStop and restarted from the full 30s
+        // in onStart, so turning the screen off and on repeatedly kept the pending request alive
+        // indefinitely.
+        if (deadlineElapsedMs == 0L) {
+            deadlineElapsedMs = SystemClock.elapsedRealtime() + CREDENTIAL_CHOOSER_TIMEOUT_MS
+            handler.postDelayed(timeout, CREDENTIAL_CHOOSER_TIMEOUT_MS)
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        coroutineContext.cancelChildren()
-    }
-
-    private val credentialListAdapter = object : BaseAdapter() {
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-            val credentialView =
-                convertView ?: layoutInflater.inflate(R.layout.credential_view, parent, false)
-
-            val titleView = credentialView.findViewById<TextView>(R.id.title)
-            val summaryView = credentialView.findViewById<TextView>(R.id.summary)
-            val credential = getItem(position)
-            val credentialInfo = credential.getTwoLineInfo(position + 1)
-            titleView.text = credentialInfo.first
-            summaryView.text = credentialInfo.second
-            summaryView.visibility = if (summaryView.text == null) View.GONE else View.VISIBLE
-            return credentialView
-        }
-
-        override fun getItem(position: Int) = credentials[position]
-
-        override fun getItemId(position: Int) = getItem(position).hashCode().toLong()
-
-        override fun getCount() = credentials.size
-
+    override fun dismiss() {
+        handler.removeCallbacks(timeout)
+        super.dismiss()
     }
 
 }

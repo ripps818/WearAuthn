@@ -66,15 +66,17 @@
         <activity
             android:name="me.henneke.wearauthn.ui.main.AboutActivity"
             android:taskAffinity=".ui.main.AuthenticatorActivity" />
+        <!--
+        Deliberately uses the default "standard" launch mode: a singleTop instance would receive a
+        second request via onNewIntent and a single screen lock confirmation would then authorize
+        both requesters.
+        -->
         <activity
             android:name="me.henneke.wearauthn.ui.ConfirmDeviceCredentialActivity"
             android:taskAffinity=".ui.main.AuthenticatorActivity" />
         <activity
             android:name="me.henneke.wearauthn.ui.ManageSpaceActivity"
             android:taskAffinity=".ui.ManageSpaceActivity" />
-        <activity
-            android:name="android.support.wearable.preference.WearablePreferenceActivity"
-            android:taskAffinity=".ui.main.AuthenticatorActivity" />
         <activity
             android:name="androidx.wear.activity.ConfirmationActivity"
             android:taskAffinity=".ui.main.AuthenticatorActivity" />
@@ -94,7 +96,7 @@
 
         <service
             android:name="me.henneke.wearauthn.complication.ShortcutComplicationProviderService"
-            android:enabled="false"
+            android:enabled="true"
             android:exported="true"
             android:icon="@drawable/ic_launcher_outline"
             android:label="@string/label_complication_device_shortcut"
@@ -130,17 +132,6 @@
             android:name=".ui.main.ResidentCredentialsList"
             android:taskAffinity=".ui.main.AuthenticatorActivity" />
 
-        <service
-            android:name="me.henneke.wearauthn.sync.UnlockComplicationListenerService"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
-                <data
-                    android:host="*"
-                    android:path="/unlock-complication"
-                    android:scheme="wear" />
-            </intent-filter>
-        </service>
     </application>
 
 </manifest>

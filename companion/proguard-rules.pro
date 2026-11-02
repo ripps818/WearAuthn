@@ -1,1 +1,1 @@
--keep class com.android.vending.billing.**
+# No custom keep rules are required.
