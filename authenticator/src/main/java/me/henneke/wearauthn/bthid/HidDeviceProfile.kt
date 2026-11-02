@@ -58,7 +58,7 @@ abstract class HidDeviceProfile(private val bluetoothAdapter: BluetoothAdapter) 
      *
      * @param device Device to connect to.
      */
-    internal abstract fun connect(device: BluetoothDevice)
+    internal abstract fun connect(device: BluetoothDevice): Boolean
 
     /**
      * Close the connection with the remote HID Host device.

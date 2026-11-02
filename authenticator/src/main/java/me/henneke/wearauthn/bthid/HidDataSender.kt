@@ -31,6 +31,9 @@ object HidDataSender : Logging {
     // until Bluetooth is toggled, so disconnect first and wait (bounded) for it to complete.
     private const val TEARDOWN_TIMEOUT_MS = 3_000L
 
+    // A host can get stuck in CONNECTING or DISCONNECTING, which blocks every new connect attempt.
+    private const val STUCK_RECONNECT_DELAY_MS = 2_000L
+
     enum class AppRegistrationState {
         WAITING_FOR_SERVICE,
         REGISTERING,
@@ -77,6 +80,15 @@ object HidDataSender : Logging {
     private var teardownPending = false
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val retryConnect = Runnable {
+        synchronized(lock) {
+            if (waitingForDevice != null && isAppRegistered) {
+                i { "Retrying connect after resetting a stuck host" }
+                updateDeviceList()
+            }
+        }
+    }
 
     private val teardownTimeout = Runnable {
         synchronized(lock) {
@@ -177,6 +189,10 @@ object HidDataSender : Logging {
                 if (registered) {
                     registrationAttempts = 0
                 }
+                // The stack can drop the registration on its own (e.g. after a disconnect). Ask
+                // for it again while someone still needs it; the registration timeout bounds this.
+                val droppedUnexpectedly = !registered && registrationAttempts == 0 &&
+                    profileListeners.isNotEmpty() && !teardownPending
                 if (!registered && connectedDevice != null) {
                     reconnectAfterRegistrationDevice = connectedDevice
                 }
@@ -194,6 +210,9 @@ object HidDataSender : Logging {
                 if (registered) {
                     reconnectAfterRegistrationDevice?.let { waitingForDevice = it }
                     updateDeviceList()
+                } else if (droppedUnexpectedly) {
+                    w { "Registration dropped by the Bluetooth stack; registering again" }
+                    ensureAppRegisteredLocked()
                 }
             }
         }
@@ -345,6 +364,24 @@ object HidDataSender : Logging {
         appRegistrationState = AppRegistrationState.WAITING_FOR_SERVICE
     }
 
+    /**
+     * Disconnects hosts stuck in CONNECTING or DISCONNECTING so that a new connect can proceed,
+     * then retries the connect shortly after.
+     */
+    @GuardedBy("lock")
+    private fun resetStuckHostsLocked() {
+        val stuck = hidDeviceProfile.getDevicesMatchingConnectionStates(
+            intArrayOf(BluetoothProfile.STATE_CONNECTING, BluetoothProfile.STATE_DISCONNECTING)
+        )
+        if (stuck.isEmpty()) return
+        w { "Resetting ${stuck.size} host(s) stuck in a transitional state" }
+        for (device in stuck) {
+            hidDeviceProfile.disconnect(device)
+        }
+        mainHandler.removeCallbacks(retryConnect)
+        mainHandler.postDelayed(retryConnect, STUCK_RECONNECT_DELAY_MS)
+    }
+
     private fun activeHosts(): List<BluetoothDevice> =
         hidDeviceProfile.getDevicesMatchingConnectionStates(
             intArrayOf(BluetoothProfile.STATE_CONNECTED, BluetoothProfile.STATE_CONNECTING)
@@ -375,6 +412,9 @@ object HidDataSender : Logging {
                 return
             }
 
+            if (device != null) {
+                resetStuckHostsLocked()
+            }
             connectedDevice = null
             updateDeviceList()
 
@@ -401,17 +441,23 @@ object HidDataSender : Logging {
 
         // If there is nothing going on, and we want to connect, then do it.
         waitingForDevice?.let {
-            if (hidDeviceProfile
-                    .getDevicesMatchingConnectionStates(
-                        intArrayOf(
-                            BluetoothProfile.STATE_CONNECTED,
-                            BluetoothProfile.STATE_CONNECTING,
-                            BluetoothProfile.STATE_DISCONNECTING
-                        )
-                    )
-                    .isEmpty()
-            ) {
-                hidDeviceProfile.connect(it)
+            val busy = hidDeviceProfile.getDevicesMatchingConnectionStates(
+                intArrayOf(
+                    BluetoothProfile.STATE_CONNECTED,
+                    BluetoothProfile.STATE_CONNECTING,
+                    BluetoothProfile.STATE_DISCONNECTING
+                )
+            )
+            if (busy.isEmpty()) {
+                if (!hidDeviceProfile.connect(it)) {
+                    w { "Bluetooth stack rejected the connect request" }
+                }
+            } else {
+                i {
+                    "Not connecting yet; host states: " + busy.joinToString {
+                        connectionStateName(hidDeviceProfile.getConnectionState(it))
+                    }
+                }
             }
         }
 

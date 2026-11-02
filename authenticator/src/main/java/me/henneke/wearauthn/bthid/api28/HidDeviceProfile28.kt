@@ -26,12 +26,9 @@ class HidDeviceProfile28(bluetoothAdapter: BluetoothAdapter) : HidDeviceProfile(
         return service?.getConnectionState(device) ?: BluetoothProfile.STATE_DISCONNECTED
     }
 
-    override fun connect(device: BluetoothDevice) {
-        service?.run {
-            if (device.canUseAuthenticatorViaBluetooth) {
-                connect(device)
-            }
-        }
+    override fun connect(device: BluetoothDevice): Boolean {
+        val service = service ?: return false
+        return device.canUseAuthenticatorViaBluetooth && service.connect(device)
     }
 
     override fun disconnect(device: BluetoothDevice) {
