@@ -49,14 +49,12 @@ import me.henneke.wearauthn.bthid.isBluetoothEnabled
 import me.henneke.wearauthn.complication.ShortcutComplicationProviderService
 import me.henneke.wearauthn.d
 import me.henneke.wearauthn.e
-import me.henneke.wearauthn.fido.context.AuthenticatorStatus
 import me.henneke.wearauthn.fido.hid.TransactionManager
 import me.henneke.wearauthn.i
 import me.henneke.wearauthn.ui.WearButton
 import me.henneke.wearauthn.ui.WearListScreen
 import me.henneke.wearauthn.ui.theme.WearAuthnTheme
 import me.henneke.wearauthn.v
-import me.henneke.wearauthn.w
 
 @ExperimentalUnsignedTypes
 class AuthenticatorAttachedActivity : ComponentActivity(), Logging {
@@ -237,7 +235,9 @@ class AuthenticatorAttachedActivity : ComponentActivity(), Logging {
         super.onStart()
         if (!isBluetoothEnabled) startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
         HidDataSender.ensureAppRegistered()
-        transactionManager = TransactionManager(authenticatorContext)
+        if (transactionManager == null) {
+            transactionManager = TransactionManager(authenticatorContext)
+        }
         val profile = hidDeviceProfile ?: run {
             e { "hidDeviceProfile is null" }
             finish()
@@ -280,15 +280,8 @@ class AuthenticatorAttachedActivity : ComponentActivity(), Logging {
         HidDataSender.ensureAppRegistered()
     }
 
-    override fun onStop() {
-        super.onStop()
-        if (authenticatorContext.status != AuthenticatorStatus.IDLE) {
-            w { "onStop() called during authenticator action" }
-            return
-        }
-        HidDataSender.requestConnect(null)
-        transactionManager = null
-    }
+    // The host stays connected while the screen is off: SecurityKeyService keeps the HID
+    // registration alive, and requests are still handled until this screen is closed.
 
     override fun onDestroy() {
         HidDataSender.unregister(hidProfileListener, hidIntrDataListener)

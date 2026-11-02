@@ -10,6 +10,7 @@ import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.IntentFilter
 import android.nfc.NfcManager
 import android.os.Build
@@ -58,6 +59,7 @@ import me.henneke.wearauthn.fido.context.armUserVerificationFuse
 import me.henneke.wearauthn.fido.context.getUserVerificationState
 import me.henneke.wearauthn.i
 import me.henneke.wearauthn.isDeveloperModeEnabled
+import me.henneke.wearauthn.service.SecurityKeyService
 import me.henneke.wearauthn.ui.ConfirmDeviceCredentialActivity
 import me.henneke.wearauthn.ui.EXTRA_CONFIRM_DEVICE_CREDENTIAL_RECEIVER
 import me.henneke.wearauthn.ui.WearAppScaffold
@@ -103,8 +105,10 @@ class AuthenticatorActivity : ComponentActivity(), CoroutineScope, Logging {
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { refreshState() }
 
     private val permissionResult =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-            if (result.values.all { it }) {
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            // The notification permission is optional: the service runs without it, just without
+            // a visible notification.
+            if (hasBluetoothPermissions) {
                 bluetoothNotice = null
                 registerHidDeviceProfile()
                 refreshState()
@@ -212,8 +216,22 @@ class AuthenticatorActivity : ComponentActivity(), CoroutineScope, Logging {
         receiverRegistered = true
     }
 
+    private val notificationPermissionResult =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+
+    private var askedForNotificationPermission = false
+
+    private fun requestNotificationPermissionOnce() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || askedForNotificationPermission) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+        askedForNotificationPermission = true
+        notificationPermissionResult.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
     private fun registerHidDeviceProfile() {
         if (hasBluetoothPermissions && bluetoothAdapter != null) {
+            SecurityKeyService.start(this)
+            requestNotificationPermissionOnce()
             if (hidDeviceProfile == null) {
                 hidDeviceProfile = HidDataSender.register(this, hidProfileListener, null)
             }
@@ -230,11 +248,15 @@ class AuthenticatorActivity : ComponentActivity(), CoroutineScope, Logging {
     private fun requestBluetoothPermissions() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || hasBluetoothPermissions) return
         permissionResult.launch(
-            arrayOf(
-                Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.BLUETOOTH_SCAN,
-                Manifest.permission.BLUETOOTH_ADVERTISE,
-            ),
+            buildList {
+                add(Manifest.permission.BLUETOOTH_CONNECT)
+                add(Manifest.permission.BLUETOOTH_SCAN)
+                add(Manifest.permission.BLUETOOTH_ADVERTISE)
+                // For the security key service's ongoing notification.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    add(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }.toTypedArray(),
         )
     }
 
