@@ -134,3 +134,19 @@ The gate question (risk 1) can be answered without building anything: check whet
 - Does the Watch 3 support the Bluetooth HID Device role and HCE?
 - Does Wear OS 5 still bind legacy `android.support.wearable` complication providers?
 - Should `up=false` silent probes be allowed while running in the background?
+
+#### Device check results (2026-11-01)
+
+- `getprop ro.build.version.sdk` on the Watch 3 returns **34** (Android 14), as assumed above.
+- `dumpsys bluetooth_manager` lists **`Profile: HidDeviceService`**, so the HID Device role is present (risk 1). Whether `registerApp()` and attaching to the laptop actually work is still untested.
+
+## Phase 1: Build (started 2026-11-01)
+
+Decision: build on ray-powered/WearAuthn (`64ebcd5`), merged into our master.
+
+Building locally:
+
+- JDK 17+ (21 works).
+- Android SDK command-line tools. Recent releases replace `sdkmanager` with the `android` CLI, and SDK licenses no longer need to be accepted separately. Required packages:
+  `android --sdk=$ANDROID_HOME sdk install platforms/android-37.2 build-tools/37.0.0 platform-tools`
+- `ANDROID_HOME=<sdk> ./gradlew :authenticator:assemblePlayStoreDebug` builds successfully on Gradle 9.5 / AGP 9.3.2. The debug build is signed with the per-user debug keystore, not the committed `*.jks` files.
