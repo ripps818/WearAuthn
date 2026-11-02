@@ -9,6 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      WEARAUTHN_KEYSTORE_BASE64: ${{ secrets.WEARAUTHN_KEYSTORE_BASE64 }}
+      WEARAUTHN_KEYSTORE_PASSWORD: ${{ secrets.WEARAUTHN_KEYSTORE_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4
@@ -37,17 +40,20 @@ jobs:
         run: |
           echo "commit_count=$(git rev-list --count master)" >> $GITHUB_OUTPUT
           echo "sha_short=$(git rev-parse --short master)" >> $GITHUB_OUTPUT
+      - name: Set up signing key
+        run: |
+          # Nightly releases are published, so they must be signed (docs/SIGNING.md).
+          test -n "$WEARAUTHN_KEYSTORE_BASE64"
+          echo "$WEARAUTHN_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/wearauthn.jks"
+          echo "WEARAUTHN_KEYSTORE=$RUNNER_TEMP/wearauthn.jks" >> "$GITHUB_ENV"
       - name: Assemble with Gradle
         run: |
-          ./gradlew -PcommitCount=${{ steps.vars.outputs.commit_count }} -PcommitHash=${{ steps.vars.outputs.sha_short }} -PstorePassword="${{ secrets.NIGHTLY_KEYSTORE_PASSWORD }}" -PkeyPassword="${{ secrets.NIGHTLY_KEYSTORE_PASSWORD }}" assembleNightlySigned
+          ./gradlew -PcommitCount=${{ steps.vars.outputs.commit_count }} -PcommitHash=${{ steps.vars.outputs.sha_short }} :authenticator:assembleNightlySigned
           mv authenticator/build/outputs/apk/nightly/signed/authenticator-nightly-signed.apk authenticator-${{ steps.vars.outputs.sha_short }}.apk
-          mv companion/build/outputs/apk/nightly/signed/companion-nightly-signed.apk companion-${{ steps.vars.outputs.sha_short }}.apk
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            authenticator-${{ steps.vars.outputs.sha_short }}.apk
-            companion-${{ steps.vars.outputs.sha_short }}.apk
+          files: authenticator-${{ steps.vars.outputs.sha_short }}.apk
           name: Nightly Release (${{ steps.vars.outputs.sha_short }})
           tag_name: nightly-${{ steps.vars.outputs.sha_short }}
           body: |

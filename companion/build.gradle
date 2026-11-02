@@ -7,24 +7,23 @@ android {
 
 
     defaultConfig {
-        applicationId "me.henneke.wearauthn.authenticator"
+        applicationId "me.ripps.wearauthn"
         minSdk 21
         targetSdk 37
         versionCode makeVersionCode(minSdkVersion.apiLevel, false)
         versionName makeVersionName()
     }
     signingConfigs {
-        testSign {
-            storeFile file('../ci_keystore.jks')
-            storePassword 'hunter2'
-            keyAlias 'key0'
-            keyPassword 'hunter2'
-        }
-        nightlySign {
-            storeFile file('../nightly_keystore.jks')
-            storePassword project.hasProperty("storePassword") ? project.storePassword : ""
-            keyAlias 'key0'
-            keyPassword project.hasProperty("keyPassword") ? project.keyPassword : ""
+        // Release key, supplied via Gradle properties or environment variables and never committed
+        // (see docs/SIGNING.md). Without it, release and signed builds are left unsigned.
+        own {
+            def keystore = signingValue("WEARAUTHN_KEYSTORE")
+            if (keystore) {
+                storeFile file(keystore)
+                storePassword signingValue("WEARAUTHN_KEYSTORE_PASSWORD")
+                keyAlias signingValue("WEARAUTHN_KEY_ALIAS") ?: "wearauthn"
+                keyPassword signingValue("WEARAUTHN_KEY_PASSWORD") ?: signingValue("WEARAUTHN_KEYSTORE_PASSWORD")
+            }
         }
     }
     buildTypes {
@@ -32,7 +31,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.testSign
+            signingConfig signingConfigs.own.storeFile ? signingConfigs.own : null
         }
         debug {
             minifyEnabled false
@@ -40,7 +39,7 @@ android {
         signed {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.nightlySign
+            signingConfig signingConfigs.own.storeFile ? signingConfigs.own : null
         }
     }
     flavorDimensions += "distribution"

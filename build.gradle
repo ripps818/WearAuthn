@@ -48,6 +48,10 @@ private int getNightlyVersionCode() {
     return project.hasProperty("commitCount") ? project.commitCount.toInteger() * 10: 0
 }
 
+private String signingValue(String name) {
+    return project.findProperty(name) ?: System.getenv(name)
+}
+
 private String getNightlyVersionName() {
     return project.hasProperty("commitHash") ? "nightly-" + project.commitHash : ""
 }
