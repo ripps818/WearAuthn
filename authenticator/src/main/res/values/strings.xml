@@ -123,4 +123,8 @@
     <string name="credential_label_rp_id_hash">RP ID hash</string>
     <string name="generic_yes">Yes</string>
     <string name="generic_no">No</string>
+    <string name="notification_channel_security_key">Security key</string>
+    <string name="notification_security_key_ready">Security key ready</string>
+    <string name="notification_security_key_ready_text">Attached computers can use your watch as a security key</string>
+    <string name="notification_action_turn_off">Turn off</string>
 </resources>

@@ -109,4 +109,8 @@
     <string name="credential_label_rp_id_hash">RP-ID-Hash</string>
     <string name="generic_yes">Ja</string>
     <string name="generic_no">Nein</string>
+    <string name="notification_channel_security_key">Sicherheitsschlüssel</string>
+    <string name="notification_security_key_ready">Sicherheitsschlüssel bereit</string>
+    <string name="notification_security_key_ready_text">Verbundene Computer können deine Uhr als Sicherheitsschlüssel verwenden</string>
+    <string name="notification_action_turn_off">Ausschalten</string>
 </resources>
