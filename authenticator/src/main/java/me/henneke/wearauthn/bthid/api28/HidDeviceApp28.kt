@@ -56,10 +56,9 @@ class HidDeviceApp28 : HidDeviceApp() {
     }
 
     override fun unregisterApp() {
-        inputHost?.run {
-            if (registered)
-                unregisterApp()
-        }
+        // Unregister even if the registration callback never arrived: a request that is still
+        // pending in the Bluetooth stack would otherwise block later registrations.
+        inputHost?.unregisterApp()
         registered = false
         inputHost = null
     }

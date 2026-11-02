@@ -8,13 +8,24 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.ArraySet
 import androidx.annotation.GuardedBy
+import me.henneke.wearauthn.Logging
 import me.henneke.wearauthn.bthid.api28.HidDeviceApp28
 import me.henneke.wearauthn.bthid.api28.HidDeviceProfile28
+import me.henneke.wearauthn.i
+import me.henneke.wearauthn.w
 
 /** Central point for enabling the HID SDP record and sending all data.  */
-object HidDataSender {
+object HidDataSender : Logging {
+
+    override val TAG = "HidDataSender"
+
+    // Some stacks (seen on a OnePlus Watch 3) accept a registration request and then never answer.
+    private const val REGISTRATION_TIMEOUT_MS = 5_000L
+    private const val MAX_REGISTRATION_ATTEMPTS = 2
 
     enum class AppRegistrationState {
         WAITING_FOR_SERVICE,
@@ -55,6 +66,29 @@ object HidDataSender {
     @GuardedBy("lock")
     private var registrationRequested = false
 
+    @GuardedBy("lock")
+    private var registrationAttempts = 0
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val registrationTimeout = Runnable {
+        synchronized(lock) {
+            if (appRegistrationState != AppRegistrationState.REGISTERING) return@Runnable
+            w { "No registration callback after ${REGISTRATION_TIMEOUT_MS}ms (attempt $registrationAttempts)" }
+            hidDeviceApp.unregisterApp()
+            registrationRequested = false
+            if (registrationAttempts < MAX_REGISTRATION_ATTEMPTS) {
+                ensureAppRegisteredLocked()
+            } else {
+                w { "Giving up on registration until the user retries" }
+                appRegistrationState = AppRegistrationState.FAILED
+                for (listener in profileListeners) {
+                    listener.onAppStatusChanged(false)
+                }
+            }
+        }
+    }
+
     @Volatile
     var isAppRegistered: Boolean = false
         private set
@@ -66,6 +100,7 @@ object HidDataSender {
     private val managingProfileListener = object : ProfileListener {
         override fun onServiceStateChanged(proxy: BluetoothProfile?) {
             synchronized(lock) {
+                i { "HID Device profile service ${if (proxy != null) "connected" else "disconnected"}" }
                 profileProxy = proxy
                 registrationRequested = false
                 if (proxy == null) {
@@ -114,6 +149,11 @@ object HidDataSender {
 
         override fun onAppStatusChanged(registered: Boolean) {
             synchronized(lock) {
+                i { "App registration status: registered=$registered" }
+                mainHandler.removeCallbacks(registrationTimeout)
+                if (registered) {
+                    registrationAttempts = 0
+                }
                 if (!registered && connectedDevice != null) {
                     reconnectAfterRegistrationDevice = connectedDevice
                 }
@@ -182,6 +222,9 @@ object HidDataSender {
 
     /** Retry registration after returning from pairing, permissions or screen-lock UI. */
     fun ensureAppRegistered(): Boolean = synchronized(lock) {
+        if (appRegistrationState == AppRegistrationState.FAILED) {
+            registrationAttempts = 0
+        }
         ensureAppRegisteredLocked()
     }
 
@@ -193,8 +236,14 @@ object HidDataSender {
             return false
         }
         appRegistrationState = AppRegistrationState.REGISTERING
+        registrationAttempts++
         registrationRequested = hidDeviceApp.registerApp(proxy)
-        if (!registrationRequested) {
+        if (registrationRequested) {
+            i { "Requested app registration (attempt $registrationAttempts)" }
+            mainHandler.removeCallbacks(registrationTimeout)
+            mainHandler.postDelayed(registrationTimeout, REGISTRATION_TIMEOUT_MS)
+        } else {
+            w { "Bluetooth stack rejected the app registration request" }
             appRegistrationState = AppRegistrationState.FAILED
         }
         return registrationRequested
@@ -223,6 +272,9 @@ object HidDataSender {
                 return
             }
 
+            i { "Last listener gone; unregistering app" }
+            mainHandler.removeCallbacks(registrationTimeout)
+            registrationAttempts = 0
             hidDeviceApp.unregisterDeviceListener()
 
             for (device in hidDeviceProfile.connectedDevices) {
