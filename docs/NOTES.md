@@ -172,3 +172,12 @@ Building locally:
 - **Wedge trigger narrowed down:** the HID stack stops accepting registrations (native `unregister_app: application not yet registered`, and no further `Registering HID device app`) after the app disconnects the host and unregisters in the same moment, e.g. when the attached screen closes. Only toggling Bluetooth recovers it. Fix: on teardown, disconnect hosts first, wait up to 3 s for the disconnect, then unregister. Cancel the teardown if the app comes back meanwhile.
 - When the stack is wedged, the watch can show "Attached" while the computer has no HID connection (no `hidraw` node). A connection started from the computer (`bluetoothctl connect`) succeeded where one started from the watch failed. That's relevant for Phase 2 reconnects.
 - Chromium sends `GetInfo`, then a dummy "GetTouch" `MakeCredential` when it has already decided the key can't satisfy the request. That's the log signature of "Your device can't be used with this site".
+
+## Plan B: phone relay over LAN (not started)
+
+Use this if Phase 2 shows Bluetooth HID on the watch is too unreliable or too costly on the battery.
+
+- Browsers have no FIDO-over-network transport, so each computer runs a small daemon that creates a virtual FIDO HID key (Linux `/dev/uhid`, as in tpm-fido) and relays CTAP requests over the LAN to a phone app. The phone asks the watch for the tap over the Wear Data Layer.
+- Pros: no dependence on the watch's HID Device profile (no OPPO stack wedge, no HID record conflict, no screen-on limit), works with any watch, networking stays on the phone. The browser still binds requests to the origin, so phishing resistance is unchanged.
+- Cons: a daemon on every host (realistically Linux-only; Windows needs a signed virtual HID driver), a security-critical pairing and encrypted channel between daemon and phone, and largely a new project. Only the FIDO core would be reused. It overlaps with Android's built-in hybrid (QR) passkey flow; the added value is the tap-on-wrist approval.
+- A phone↔PC channel from a related project might be reusable.
