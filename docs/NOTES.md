@@ -150,3 +150,42 @@ Building locally:
 - Android SDK command-line tools. Recent releases replace `sdkmanager` with the `android` CLI, and SDK licenses no longer need to be accepted separately. Required packages:
   `android --sdk=$ANDROID_HOME sdk install platforms/android-37.2 build-tools/37.0.0 platform-tools`
 - `ANDROID_HOME=<sdk> ./gradlew :authenticator:assemblePlayStoreDebug` builds successfully on Gradle 9.5 / AGP 9.3.2. The debug build is signed with the per-user debug keystore, not the committed `*.jks` files.
+
+#### First device test (2026-11-01, CI build of `d231a40`)
+
+- **Gate passed:** the app registers as a Bluetooth HID device on the Watch 3 (`BTA_HdRegisterApp` → "Registering HID device app"), a paired Linux desktop opens the HID link (`BTA_HD_OPEN_EVT`), and the app shows "Attached, ready for authentication requests".
+- **Stale registration:** after the first session dropped, the app stayed on "Starting security key…" forever. A new process got the `HID_DEVICE` proxy but never reached `BTA_HdRegisterApp`, and force-stopping didn't help. Toggling watch Bluetooth off and on cleared it. The registration state machine needs a timeout/recovery path, and logging (`bthid/` has none).
+- **Foreground-only, confirmed:** the app registers, then unregisters about 10 s later when the screen times out. Wear OS also returns to the watch face even with always-on display. Phase 2 (foreground service plus Ongoing Activity) is required before an end-to-end WebAuthn test; we decided against a keep-screen-on stopgap.
+- **Host permissions → wrong HID record (solved for testing):** the watch's `hidraw` node first came up `crw-------` without the uaccess ACL. Its report descriptor started `05 0c 09 01` (Consumer Control), so `fido_id` didn't recognize it. The watch advertises **two** HID SDP records: WearAuthn's (`06 d0 f1 09 01`) and a built-in one with service name "OPPO HIDDCR", provider "OPPO Inc.". BlueZ uses only one HID record per device and picked the OPPO one.
+  - Disabling `com.heytap.wearable.cameraassistant` did not remove the record. It appears to come from the vendor Bluetooth stack itself.
+  - Workaround on the Linux host, after pairing: stop `bluetooth`, delete the line containing `050C0901` from `/var/lib/bluetooth/<adapter>/cache/<watch>`, start `bluetooth`. After that the descriptor is FIDO, `fido_id` sets `ID_SECURITY_TOKEN=1`, and systemd grants uaccess automatically.
+  - Re-pairing brings the record back. A small host-side helper (e.g. a systemd path unit) may be needed. Windows and macOS hosts are untested.
+- **End-to-end WebAuthn works:** at webauthn.io in Chromium, registration and sign-in both succeeded with the watch prompt (vibrate, Accept). Browser settings needed:
+  - Use a window where the Bitwarden extension doesn't intercept passkey prompts, or pick its "use hardware device" option.
+  - Set User Verification and Discoverable Credential to **Discouraged**. With the defaults, Chromium reports "Your device can't be used with this site", because UV and resident keys require WearAuthn's one-way "Go passwordless" mode.
+- On Wear OS, `svc power stayon true` did not keep the screen on.
+- Logging: enable it in the app under Advanced → Log level (needs watch developer options). The `bthid/` code has no log statements.
+
+#### Second device test (2026-11-01, CI build of PR #4)
+
+- The signed build installed fine. Registration recovery works as designed: on a missing callback it times out, retries, then shows "Security key unavailable".
+- **Wedge trigger narrowed down:** the HID stack stops accepting registrations (native `unregister_app: application not yet registered`, and no further `Registering HID device app`) after the app disconnects the host and unregisters in the same moment, e.g. when the attached screen closes. Only toggling Bluetooth recovers it. Fix: on teardown, disconnect hosts first, wait up to 3 s for the disconnect, then unregister. Cancel the teardown if the app comes back meanwhile.
+- When the stack is wedged, the watch can show "Attached" while the computer has no HID connection (no `hidraw` node). A connection started from the computer (`bluetoothctl connect`) succeeded where one started from the watch failed. That's relevant for Phase 2 reconnects.
+- Chromium sends `GetInfo`, then a dummy "GetTouch" `MakeCredential` when it has already decided the key can't satisfy the request. That's the log signature of "Your device can't be used with this site".
+
+## Plan B: phone relay over LAN (not started)
+
+Use this if Phase 2 shows Bluetooth HID on the watch is too unreliable or too costly on the battery.
+
+- Browsers have no FIDO-over-network transport, so each computer runs a small daemon that creates a virtual FIDO HID key (Linux `/dev/uhid`, as in tpm-fido) and relays CTAP requests over the LAN to a phone app. The phone asks the watch for the tap over the Wear Data Layer.
+- Pros: no dependence on the watch's HID Device profile (no OPPO stack wedge, no HID record conflict, no screen-on limit), works with any watch, networking stays on the phone. The browser still binds requests to the origin, so phishing resistance is unchanged.
+- Cons: a daemon on every host (realistically Linux-only; Windows needs a signed virtual HID driver), a security-critical pairing and encrypted channel between daemon and phone, and largely a new project. Only the FIDO core would be reused. It overlaps with Android's built-in hybrid (QR) passkey flow; the added value is the tap-on-wrist approval.
+- A phone↔PC channel from a related project might be reusable.
+
+#### Root cause of the registration wedge (2026-11-01)
+
+- `HidDeviceService` only allows a **foreground** app to hold the HID registration: `registerApp(): failed because the app is not foreground`. When the screen turns off and the app drops out of the foreground, the service unregisters it on its own (`IBinder.unlinkToDeath()` and native `unregister_app` at the moment the screen times out, with no unregister call from the app).
+- After that forced unregister, OPPO's stack ends up stuck: later `registerApp()` calls return success but never reach the native layer, until Bluetooth is toggled. The teardown-order fix doesn't help with this, because the app isn't the one unregistering.
+- **Fix:** hold the registration in a foreground service (`connectedDevice`). An app with a foreground service counts as foreground for this check, so it is never kicked out. This is Phase 2 step 1, and now the top priority.
+- The desktop's BlueZ also re-reads the watch's SDP records after the watch's Bluetooth restarts, which restores the OPPO record. `host/linux/oppo-hid-fix.sh` handles that automatically.
+- With the host fix installed: registration and sign-in at webauthn.io worked again with this build.

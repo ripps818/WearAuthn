@@ -21,7 +21,7 @@
     <string name="status_bluetooth_key_starting">Starting security key…</string>
     <string name="status_bluetooth_key_ready">Security key ready</string>
     <string name="status_bluetooth_key_unavailable">Security key unavailable</string>
-    <string name="status_bluetooth_tap_to_retry">Tap to retry</string>
+    <string name="status_bluetooth_tap_to_retry">Tap to retry, or toggle Bluetooth off and on</string>
     <string name="status_bluetooth_reconnecting">Reconnecting…</string>
     <string name="preference_bluetooth_permissions_key" translatable="false">preference_bluetooth_permissions</string>
     <string name="preference_nfc_settings_key" translatable="false">preference_nfc_settings</string>

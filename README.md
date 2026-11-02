@@ -13,6 +13,7 @@ Use your watch as a security key via Bluetooth and NFC and confirm sign-ins with
     - [Bluetooth](#bluetooth)
     - [NFC](#nfc)
   - [Compatibility & Setup](#compatibility--setup)
+    - [Tested watches](#tested-watches)
     - [Windows (Bluetooth)](#windows-bluetooth)
     - [macOS (Bluetooth)](#macos-bluetooth)
       - [Known issues](#known-issues)
@@ -54,6 +55,16 @@ Just hold your watch to your NFC-capable phone when you are asked to "Use your S
 
 Due to security restrictions imposed on third-party apps by Wear OS, WearAuthn is not able to offer its authentication capabilities via Bluetooth Low Energy (BLE). As a consequence, mobile devices such as Android and iOS devices **cannot** use WearAuthn via Bluetooth.
 
+### Tested watches
+
+Bluetooth security key support depends on the watch manufacturer including Android's Bluetooth HID Device profile, so results vary between models. This fork is developed and tested on one watch:
+
+| Watch | Wear OS | Bluetooth | NFC | Notes |
+|---|---|---|---|---|
+| OnePlus Watch 3 | Wear OS 5 (Android 14, API 34) | Works: registration and sign-in tested on Linux with Chromium | Not tested | The watch also advertises a built-in OPPO media-remote HID service, which some computers pick instead of WearAuthn's. See [Linux](#linux-bluetooth). The connection currently only stays up while WearAuthn is on screen. |
+
+Other watches may work but haven't been tested with this fork. To check whether yours has the HID Device profile, run `adb shell dumpsys bluetooth_manager | grep HidDeviceService` with ADB connected to the watch. If you try another model, please open an issue with the results.
+
 ### Windows (Bluetooth)
 
 No setup required and fully supported by Chrome, Edge and Firefox on Windows 10 Version 1809 and later.
@@ -84,6 +95,16 @@ If WearAuthn is connected to your Linux device, but you still do not receive con
 sudo dnf install u2f-hidraw-policy # CentOS/RHEL/Fedora
 sudo pacman -S u2f-hidraw-policy # Arch
 ```
+
+**OnePlus/OPPO watches:** the watch advertises a second HID service ("OPPO HIDDCR", a media remote), and BlueZ uses it instead of WearAuthn's, so the browser never sees a security key. Install the host fix once. It adds a small systemd path unit under `/etc` that strips that record from BlueZ's cache after pairing and restarts Bluetooth. It only touches devices that also advertise WearAuthn's record:
+
+```bash
+curl -fsSLo /tmp/oppo-hid-fix.sh https://raw.githubusercontent.com/ripps818/WearAuthn/master/host/linux/oppo-hid-fix.sh
+less /tmp/oppo-hid-fix.sh   # review it first
+sudo sh /tmp/oppo-hid-fix.sh
+```
+
+Then pair the watch from WearAuthn (**Discoverable**). Uninstall with `sudo /etc/wearauthn/wearauthn-oppo-hid-fix uninstall`. To check whether you're affected: if the watch's `hidraw` report descriptor starts with `05 0c` instead of `06 d0 f1`, you are.
 
 **Other distributions:** Providing a simple udev rule file is unfortunately not possible since the required rule depends on your particular watch model. It is thus recommended to install `u2f-hidraw-policy` from source as follows:
 
