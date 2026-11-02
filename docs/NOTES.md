@@ -150,3 +150,12 @@ Building locally:
 - Android SDK command-line tools. Recent releases replace `sdkmanager` with the `android` CLI, and SDK licenses no longer need to be accepted separately. Required packages:
   `android --sdk=$ANDROID_HOME sdk install platforms/android-37.2 build-tools/37.0.0 platform-tools`
 - `ANDROID_HOME=<sdk> ./gradlew :authenticator:assemblePlayStoreDebug` builds successfully on Gradle 9.5 / AGP 9.3.2. The debug build is signed with the per-user debug keystore, not the committed `*.jks` files.
+
+#### First device test (2026-11-01, CI build of `d231a40`)
+
+- **Gate passed:** the app registers as a Bluetooth HID device on the Watch 3 (`BTA_HdRegisterApp` → "Registering HID device app"), a paired Linux desktop opens the HID link (`BTA_HD_OPEN_EVT`), and the app shows "Attached, ready for authentication requests".
+- **Stale registration:** after the first session dropped, the app stayed on "Starting security key…" forever. A new process got the `HID_DEVICE` proxy but never reached `BTA_HdRegisterApp`, and force-stopping didn't help. Toggling watch Bluetooth off and on cleared it. The registration state machine needs a timeout/recovery path, and logging (`bthid/` has none).
+- **Foreground-only, confirmed:** the app registers, then unregisters about 10 s later when the screen times out. Wear OS also returns to the watch face even with always-on display. Phase 2 (foreground service plus Ongoing Activity) is required before an end-to-end WebAuthn test; we decided against a keep-screen-on stopgap.
+- **Host permissions:** on the desktop, the watch's `hidraw` node came up `crw-------` with no uaccess ACL, unlike other HID devices. udev's `fido_id` may not be tagging it as a security key. Check `udevadm info` next time it's attached.
+- On Wear OS, `svc power stayon true` did not keep the screen on.
+- Logging: enable it in the app under Advanced → Log level (needs watch developer options). The `bthid/` code has no log statements.
