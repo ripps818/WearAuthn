@@ -26,3 +26,6 @@
 # Signing keys are never committed (see docs/SIGNING.md)
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.password
