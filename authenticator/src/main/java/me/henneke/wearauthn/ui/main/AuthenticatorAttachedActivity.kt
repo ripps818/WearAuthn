@@ -218,7 +218,12 @@ class AuthenticatorAttachedActivity : ComponentActivity(), Logging {
                         item {
                             WearButton(
                                 label = stringResource(R.string.action_disconnect),
-                                onClick = { finish() },
+                                // Closing this screen keeps the host connected (SecurityKeyService
+                                // holds the connection), so disconnect explicitly.
+                                onClick = {
+                                    HidDataSender.requestConnect(null)
+                                    finish()
+                                },
                                 colors = ButtonDefaults.filledTonalButtonColors(),
                             )
                         }
