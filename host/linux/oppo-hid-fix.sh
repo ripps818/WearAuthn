@@ -28,7 +28,7 @@ OPPO_NAME=4F50504F20484944444352     # Service name "OPPO HIDDCR"
 # bluetoothd if anything changed.
 run() {
     changed=0
-    for f in "$BTDIR"/*/cache/*; do
+    for f in "$BTDIR"/??:??:??:??:??:??/cache/??:??:??:??:??:??; do
         [ -f "$f" ] || continue
         grep -qi "$FIDO_DESC" "$f" || continue
         grep -i "$OPPO_DESC" "$f" | grep -qi "$OPPO_NAME" || continue

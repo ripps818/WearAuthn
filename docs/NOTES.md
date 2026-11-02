@@ -181,3 +181,11 @@ Use this if Phase 2 shows Bluetooth HID on the watch is too unreliable or too co
 - Pros: no dependence on the watch's HID Device profile (no OPPO stack wedge, no HID record conflict, no screen-on limit), works with any watch, networking stays on the phone. The browser still binds requests to the origin, so phishing resistance is unchanged.
 - Cons: a daemon on every host (realistically Linux-only; Windows needs a signed virtual HID driver), a security-critical pairing and encrypted channel between daemon and phone, and largely a new project. Only the FIDO core would be reused. It overlaps with Android's built-in hybrid (QR) passkey flow; the added value is the tap-on-wrist approval.
 - A phone↔PC channel from a related project might be reusable.
+
+#### Root cause of the registration wedge (2026-11-01)
+
+- `HidDeviceService` only allows a **foreground** app to hold the HID registration: `registerApp(): failed because the app is not foreground`. When the screen turns off and the app drops out of the foreground, the service unregisters it on its own (`IBinder.unlinkToDeath()` and native `unregister_app` at the moment the screen times out, with no unregister call from the app).
+- After that forced unregister, OPPO's stack ends up stuck: later `registerApp()` calls return success but never reach the native layer, until Bluetooth is toggled. The teardown-order fix doesn't help with this, because the app isn't the one unregistering.
+- **Fix:** hold the registration in a foreground service (`connectedDevice`). An app with a foreground service counts as foreground for this check, so it is never kicked out. This is Phase 2 step 1, and now the top priority.
+- The desktop's BlueZ also re-reads the watch's SDP records after the watch's Bluetooth restarts, which restores the OPPO record. `host/linux/oppo-hid-fix.sh` handles that automatically.
+- With the host fix installed: registration and sign-in at webauthn.io worked again with this build.
