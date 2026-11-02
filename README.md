@@ -96,18 +96,15 @@ sudo dnf install u2f-hidraw-policy # CentOS/RHEL/Fedora
 sudo pacman -S u2f-hidraw-policy # Arch
 ```
 
-**OnePlus/OPPO watches:** the watch advertises a second HID service ("OPPO HIDDCR", a media remote), and BlueZ may use it instead of WearAuthn's. You can check: if the watch's `hidraw` device has a report descriptor starting `05 0c` instead of `06 d0 f1`, the browser won't see a security key. As a workaround after pairing:
+**OnePlus/OPPO watches:** the watch advertises a second HID service ("OPPO HIDDCR", a media remote), and BlueZ uses it instead of WearAuthn's, so the browser never sees a security key. Install the host fix once. It adds a small systemd path unit under `/etc` that strips that record from BlueZ's cache after pairing and restarts Bluetooth. It only touches devices that also advertise WearAuthn's record:
 
 ```bash
-# <adapter> and <watch> are the Bluetooth addresses of your computer and watch
-F=/var/lib/bluetooth/<adapter>/cache/<watch>
-sudo systemctl stop bluetooth
-sudo cp "$F" "$F.bak"
-sudo sed -i '/050C0901/Id' "$F"   # drop the media-remote HID record
-sudo systemctl start bluetooth
+curl -fsSLo /tmp/oppo-hid-fix.sh https://raw.githubusercontent.com/ripps818/WearAuthn/master/host/linux/oppo-hid-fix.sh
+less /tmp/oppo-hid-fix.sh   # review it first
+sudo sh /tmp/oppo-hid-fix.sh
 ```
 
-Re-pairing restores the record, so repeat this after each pairing.
+Then pair the watch from WearAuthn (**Discoverable**). Uninstall with `sudo /etc/wearauthn/wearauthn-oppo-hid-fix uninstall`. To check whether you're affected: if the watch's `hidraw` report descriptor starts with `05 0c` instead of `06 d0 f1`, you are.
 
 **Other distributions:** Providing a simple udev rule file is unfortunately not possible since the required rule depends on your particular watch model. It is thus recommended to install `u2f-hidraw-policy` from source as follows:
 

@@ -35,7 +35,7 @@ Pair from inside WearAuthn, so the computer reads WearAuthn's HID record:
 1. In WearAuthn, tap **Discoverable**.
 2. On the computer, run `bluetoothctl`, then `scan on`, then `pair <watch-address>`. Confirm the passkey on both sides, then run `trust <watch-address>` and `exit`.
 
-**OnePlus/OPPO watches:** the watch also advertises an "OPPO HIDDCR" media-remote HID record, and BlueZ may pick it instead. Remove it from BlueZ's cache after pairing (see the README's Linux section), then reconnect.
+**OnePlus/OPPO watches:** the watch also advertises an "OPPO HIDDCR" media-remote HID record, and BlueZ picks it instead. Install the host fix first: `sudo sh host/linux/oppo-hid-fix.sh` (see the README's Linux section). It strips the record automatically after pairing.
 
 ## 4. Attach and check the host side
 
